@@ -200,5 +200,6 @@ typedef struct CosTabsInitOnce {
 } CosTabsInitOnce;
 
 void ff_tx_init_float_x86(AVTXContext *s, av_tx_fn *tx);
+void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx);
 
 #endif /* AVUTIL_TX_PRIV_H */
