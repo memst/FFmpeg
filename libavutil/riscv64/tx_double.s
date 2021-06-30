@@ -47,17 +47,14 @@ ff_fft4_double:
 
 # a1 - FFTComplex
 ff_fft8_double:
-    addi t1, zero, 4
-    addi t2, zero, 8
-    addi t3, zero, 16
-    vsetvli t0, t3, e64, m8     #4 registers v0, v8, v16, v24 of 16 doubles each
-    vle64.v v0, (a1)            #load fftcomplex to register
+    vsetivli t0, 16, e64, m8    #4 registers v0, v8, v16, v24 of 16 doubles each
+    vle64.v v0, (a2)            #load fftcomplex to register
 fft8_m:
     la t4, fft8_shufs           #load indices needed for shuffles
     vle64.v v16, 0(t4)
     addi t4, t4, 128
     vle64.v v24, 0(t4)
-    vsetvli t0, t2, e64, m4     #8 registers v0, v4, v8... of 8 doubles each
+    vsetivli t0, 8, e64, m4     #8 registers v0, v4, v8... of 8 doubles each
 
     vfadd.vv v8, v0, v4         #q1234 k1234
     vfsub.vv v0, v0, v4         #r1234 j1234
@@ -67,12 +64,12 @@ fft8_m:
     vrgather.vv v8, v0, v24     #j4321 j3412        v24 - 76546745 
     vfmul.vv v8, v8, v28        #j'                 v28 - sqrt(1/2) - PNNP NNPP
 
-    vsetvli t0, t3, e64, m8     #enlarge registers for effective loading
+    vsetivli t0, 16, e64, m8    #enlarge registers for effective loading
     addi t4, t4, 128            #load 2nd set of indices needed for shuffles
     vle64.v v16, 0(t4)
     addi t4, t4, 128            
     vle64.v v24, 0(t4)
-    vsetvli t0, t1, e64, m2     #16 registers v0, v2, v4... of 4 doubles each
+    vsetivli t0, 4, e64, m2      #16 registers v0, v2, v4... of 4 doubles each
 
     vfmacc.vv   v4, v6, v16     #z1234              v16 - 1, -1, -1, 1 
 
@@ -86,14 +83,14 @@ fft8_m:
     vfadd.vv    v14, v4, v6     #o1234 (out)
     vfsub.vv    v12, v4, v6     #u1234 (out)
 
-    vsetvli t0, t2, e64, m4     #8 registers v0, v4, v8... of 8 doubles each
+    vsetivli t0, 8, e64, m4     #8 registers v0, v4, v8... of 8 doubles each
     vrgather.vv v4, v0, v24     #s1234 g1234        v24 - 01452376 
-    vsetvli t0, t1, e64, m2     #16 registers v0, v2, v4... of 4 doubles each
+    vsetivli t0, 4, e64, m2     #16 registers v0, v2, v4... of 4 doubles each
     vfadd.vv v8, v4, v6         #w1234 (out)
     vfsub.vv v10, v4, v6        #h1234 (out)
     #fft8_m operates as the example asm where it takes ordered input and returns it split into odd/even groups
 fft8_e: 
-    vsetvli t0, t3, e64, m8     #3 registers v0, v8, v16, v24 of 16 doubles each
+    vsetivli t0, 16, e64, m8     #3 registers v0, v8, v16, v24 of 16 doubles each
 
     la t4, fft8_rearrange       #rearrange the groups back in original order
     vle64.v v16, 0(t4)            
