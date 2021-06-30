@@ -19,8 +19,32 @@
 
     .text                       # Start text section
     .align 2                    # align 4 byte instructions by 2**2 bytes
+    .global ff_fft4_double
     .global ff_fft8_double      # define global function symbol
     
+# a0- AVTXContext
+# a1- FFTComplex in
+# a2- FFTComplex out
+# a4- tmp
+ff_fft4_double:
+    vsetivli t0, 8, e64, m4
+    vle64.v v0, (a2)            #Load complex
+    vsetivli t0, 4, e64, m2
+    vfsub.vv v4, v0, v2         #r1234
+    vfadd.vv v6, v0, v2         #t1234
+
+    vsetivli t0, 16, e64, m8
+    la t1, fft4_shufs
+    vle64.v v16, 0(t1)
+    vrgather.vv v8, v0, v16     #t12r12 t12r12 t34r43 t34r43    v16 - cd89 cd89 efba efba
+    vsetivli t0, 8, e64, m4
+    addi t1, t1, 128
+    vle64.v v24, 0(t1)
+    vfmul.vv v12, v12, v24      #v24 - PPPN NNNP
+    vfadd.vv v0, v8, v12        #a12 b12 a34 b34
+    vse64.v v0, 0(a1)
+    ret
+
 # a1 - FFTComplex
 ff_fft8_double:
     addi t1, zero, 4
@@ -29,7 +53,7 @@ ff_fft8_double:
     vsetvli t0, t3, e64, m8     #4 registers v0, v8, v16, v24 of 16 doubles each
     vle64.v v0, (a1)            #load fftcomplex to register
 fft8_m:
-    la t4, shufs                #load indices needed for shuffles
+    la t4, fft8_shufs           #load indices needed for shuffles
     vle64.v v16, 0(t4)
     addi t4, t4, 128
     vle64.v v24, 0(t4)
@@ -71,7 +95,7 @@ fft8_m:
 fft8_e: 
     vsetvli t0, t3, e64, m8     #3 registers v0, v8, v16, v24 of 16 doubles each
 
-    la t4, rearrange            #rearrange the groups back in original order
+    la t4, fft8_rearrange       #rearrange the groups back in original order
     vle64.v v16, 0(t4)            
     vrgather.vv v0, v8, v16
     vse64.v v0, 0(a1)
@@ -79,6 +103,19 @@ fft8_e:
 
     .section .rodata            # Start read-only data section
     .balign 4                   # align to 4 bytes
+
+fft4_shufs:
+    .dword 0xc, 0xd, 0x8, 0x9
+    .dword 0xc, 0xd, 0x8, 0x9
+
+    .dword 0xe, 0xf, 0xb, 0xa
+    .dword 0xe, 0xf, 0xb, 0xa
+
+    .dword 0x3FF0000000000000, 0x3FF0000000000000, 0x3FF0000000000000, 0xBFF0000000000000
+    .dword 0xBFF0000000000000, 0xBFF0000000000000, 0xBFF0000000000000, 0x3FF0000000000000
+
+    #.dword
+    #.dword
 
 fft8_shufs:
     .dword 0x0, 0x1, 0x6, 0x5
