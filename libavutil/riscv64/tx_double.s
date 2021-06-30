@@ -23,8 +23,8 @@
     .global ff_fft8_double      # define global function symbol
     
 # a0- AVTXContext
-# a1- FFTComplex in
-# a2- FFTComplex out
+# a1- FFTComplex out
+# a2- FFTComplex in
 # a4- tmp
 ff_fft4_double:
     vsetivli t0, 8, e64, m4
@@ -45,11 +45,14 @@ ff_fft4_double:
     vse64.v v0, 0(a1)
     ret
 
-# a1 - FFTComplex
+# a0- AVTXContext
+# a1- FFTComplex out
+# a2- FFTComplex in
+# a4- tmp
 ff_fft8_double:
     vsetivli t0, 16, e64, m8    #4 registers v0, v8, v16, v24 of 16 doubles each
     vle64.v v0, (a2)            #load fftcomplex to register
-fft8_m:
+#fft8_m:
     la t4, fft8_shufs           #load indices needed for shuffles
     vle64.v v16, 0(t4)
     addi t4, t4, 128
@@ -89,17 +92,23 @@ fft8_m:
     vfadd.vv v8, v4, v6         #w1234 (out)
     vfsub.vv v10, v4, v6        #h1234 (out)
     #fft8_m operates as the example asm where it takes ordered input and returns it split into odd/even groups
-fft8_e: 
+#fft8_e: 
     vsetivli t0, 16, e64, m8     #3 registers v0, v8, v16, v24 of 16 doubles each
 
-    la t4, fft8_rearrange       #rearrange the groups back in original order
+    la t4, fft8_rearrange        #rearrange the groups back in original order
     vle64.v v16, 0(t4)            
     vrgather.vv v0, v8, v16
     vse64.v v0, 0(a1)
     ret
 
+
     .section .rodata            # Start read-only data section
     .balign 4                   # align to 4 bytes
+
+.equ p_one, 0x3FF0000000000000
+.equ n_one, 0xBFF0000000000000
+.equ p_sqrt_1_2, 0x3FE6A09E667F3BCD
+.equ n_sqrt_1_2, 0xBFE6A09E667F3BCD
 
 fft4_shufs:
     .dword 0xc, 0xd, 0x8, 0x9
@@ -108,8 +117,8 @@ fft4_shufs:
     .dword 0xe, 0xf, 0xb, 0xa
     .dword 0xe, 0xf, 0xb, 0xa
 
-    .dword 0x3FF0000000000000, 0x3FF0000000000000, 0x3FF0000000000000, 0xBFF0000000000000
-    .dword 0xBFF0000000000000, 0xBFF0000000000000, 0xBFF0000000000000, 0x3FF0000000000000
+    .dword p_one, p_one, p_one, n_one
+    .dword n_one, n_one, n_one, p_one
 
     #.dword
     #.dword
@@ -124,17 +133,13 @@ fft8_shufs:
     .dword 0x7, 0x6, 0x5, 0x4
     .dword 0x6, 0x7, 0x4, 0x5
 
-    #pos sqrt(1/2) 0x3FE6A09E667F3BCD
-    #neg sqrt(1/2) 0xBFE6A09E667F3BCD
-    .dword 0x3FE6A09E667F3BCD, 0xBFE6A09E667F3BCD, 0xBFE6A09E667F3BCD, 0x3FE6A09E667F3BCD
-    .dword 0xBFE6A09E667F3BCD, 0xBFE6A09E667F3BCD, 0x3FE6A09E667F3BCD, 0x3FE6A09E667F3BCD
+    .dword p_sqrt_1_2, n_sqrt_1_2, n_sqrt_1_2, p_sqrt_1_2
+    .dword n_sqrt_1_2, n_sqrt_1_2, p_sqrt_1_2, p_sqrt_1_2
 fft8_shufs2:
-    # 1 0x3FF0000000000000
-    #-1 0xBFF0000000000000
-    .dword 0x3FF0000000000000, 0xBFF0000000000000, 0xBFF0000000000000, 0x3FF0000000000000
+    .dword p_one, n_one, n_one, p_one
     .dword 0x3, 0x2, 0x1, 0x0
 
-    .dword 0xBFF0000000000000, 0x3FF0000000000000, 0xBFF0000000000000, 0x3FF0000000000000
+    .dword n_one, p_one, n_one, p_one
     .dword 0x0, 0x0, 0x0, 0x0
 
     .dword 0x0, 0x1, 0x4, 0x5
