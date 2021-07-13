@@ -16,17 +16,17 @@
 #* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #*
 
-
     .text                       # Start text section
     .align 2                    # align 4 byte instructions by 2**2 bytes
-    .global ff_fft4_double
-    .global ff_fft8_double      # define global function symbol
+    .global ff_fft4_double_riscv
+    .global ff_fft8_double_riscv
+    .global ff_fft16_double_riscv
     
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
-ff_fft4_double:
+ff_fft4_double_riscv:
     vsetivli t0, 8, e64, m4
     vle64.v v0, (a2)            #Load complex
     vsetivli t0, 4, e64, m2
@@ -49,7 +49,7 @@ ff_fft4_double:
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
-ff_fft8_double:
+ff_fft8_double_riscv:
     vsetivli t0, 16, e64, m8    #4 registers v0, v8, v16, v24 of 16 doubles each
     vle64.v v0, (a2)            #load fftcomplex to register
 #fft8_m:
@@ -101,6 +101,13 @@ ff_fft8_double:
     vse64.v v0, 0(a1)
     ret
 
+# a0- AVTXContext
+# a1- FFTComplex out
+# a2- FFTComplex in
+# a4- tmp
+ff_fft16_double_riscv:
+    ret
+    
 
     .section .rodata            # Start read-only data section
     .balign 4                   # align to 4 bytes

@@ -241,6 +241,8 @@ av_cold int av_tx_init(AVTXContext **ctx, av_tx_fn *tx, enum AVTXType type,
             ff_tx_init_float_x86(s, tx);
         break;
     case AV_TX_DOUBLE_FFT:
+        if (ARCH_RISCV)
+            ff_tx_init_double_riscv(s, tx);
     case AV_TX_DOUBLE_MDCT:
         if ((err = ff_tx_init_mdct_fft_double(s, tx, type, inv, len, scale, flags)))
             goto fail;
