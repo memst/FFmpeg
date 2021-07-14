@@ -106,6 +106,27 @@ ff_fft8_double_riscv:
 # a2- FFTComplex in
 # a4- tmp
 ff_fft16_double_riscv:
+    li t2, 64
+    li t3, 32
+    vsetvli t0, t2, e64, m8
+    la t1, fft16_shufs
+    vle64.v v24, (t1)
+    vsetvli t0, t3, e64, m4
+    vle64.v v0, (a2)
+    #Call Smaller FFTs here
+    vrgather.vv v4, v0, v28
+    vfmul.vv v4, v4, v24
+    ##correct up to this point
+    vsetivli t0, 16, e64, m2
+    vfadd.vv v4, v4, v6
+    vsetivli t0, 8, e64, m1
+    vfadd.vv v6, v4, v5
+    vfsub.vv v7, v4, v5
+    vsetivli t0, 16, e64, m2
+    vfsub.vv v2, v0, v6
+    vfadd.vv v0, v0, v6
+    vsetvli t0, t3, e64, m4
+    vse64.v v0, (a1)
     ret
     
 
@@ -154,3 +175,25 @@ fft8_shufs2:
 
 fft8_rearrange:
     .dword 0x0, 0x1, 0x8, 0x9, 0x2, 0x3, 0xa, 0xb, 0x4, 0x5, 0xc, 0xd, 0x6, 0x7, 0xe, 0xf
+
+.equ p_cos_16_1, 0x3fed906bcf328d46
+.equ p_cos_16_2, 0x3fe6a09e667f3bcd
+.equ p_cos_16_3, 0x3fd87de2a6aea964
+
+.equ n_cos_16_1, 0xbfed906bcf328d46
+.equ n_cos_16_2, 0xbfe6a09e667f3bcd
+.equ n_cos_16_3, 0xbfd87de2a6aea964
+
+fft16_shufs:
+    .dword p_one, p_one, p_cos_16_1, n_cos_16_3, p_cos_16_2, n_cos_16_2, p_cos_16_3, n_cos_16_1
+    .dword p_one, p_one, p_cos_16_2, p_cos_16_2, p_cos_16_1, p_cos_16_3, p_cos_16_1, p_cos_16_3
+
+    .dword 0x0, 0x0, n_cos_16_3, p_cos_16_1, n_cos_16_2, p_cos_16_2, n_cos_16_1, p_cos_16_3
+    .dword 0x0, 0x0, p_cos_16_2, p_cos_16_2, p_cos_16_3, p_cos_16_1, p_cos_16_3, p_cos_16_1
+
+    .dword 0x18, 0x11, 0x1a, 0x12, 0x1c, 0x14, 0x1e, 0x16 
+    .dword 0x10, 0x19, 0x14, 0x1c, 0x12, 0x1a, 0x17, 0x1f
+
+    .dword 0x0, 0x0, 0x1b, 0x13, 0x1d, 0x15, 0x1f, 0x17
+    .dword 0x0, 0x0, 0x15, 0x1d, 0x13, 0x1b, 0x16, 0x1e
+
