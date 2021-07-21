@@ -22,6 +22,8 @@
     .global ff_fft8_double_riscv
     .global ff_fft16_double_riscv
     
+    .global ff_fft8_double_riscv_v128
+
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
@@ -49,7 +51,7 @@ ff_fft4_double_riscv:
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
-ff_fft8_double_riscv:
+ff_fft8_double_riscv_v128:
     vsetivli t0, 16, e64, m8    #4 registers v0, v8, v16, v24 of 16 doubles each
     vle64.v v0, (a2)            #load fftcomplex to register
 #fft8_m:
@@ -101,10 +103,29 @@ ff_fft8_double_riscv:
     vse64.v v0, 0(a1)
     ret
 
+ff_fft8_double_riscv:
+
+    ret
+
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
+    li t2, 64
+    li t3, 32
+
+    #lw t4, 56(a0) #Address of revtab
+    #la t4, (t4)
+    #vsetvli t0, t3, e64, m4
+    #vle64.v v0, (t4)
+    #vmv.v.i v0, 11
+    #vse64.v v0, (a0)
+    sw t4, (a1)
+    sw a1, 8(a1)
+    ret
+    #vloxei32.v vd, (rs1), vs2
+
+
 ff_fft16_double_riscv:
     li t2, 64
     li t3, 32
@@ -112,16 +133,18 @@ ff_fft16_double_riscv:
     la t1, fft16_shufs
     vle64.v v24, (t1)
     vsetvli t0, t3, e64, m4
-    vle64.v v0, (a2)
+    vle64.v v0, (a2)                #Load the complex
     #Call Smaller FFTs here
     vrgather.vv v4, v0, v28
     vfmul.vv v4, v4, v24
-    ##correct up to this point
     vsetivli t0, 16, e64, m2
     vfadd.vv v4, v4, v6
     vsetivli t0, 8, e64, m1
     vfadd.vv v6, v4, v5
-    vfsub.vv v7, v4, v5
+    vfsub.vv v4, v4, v5
+    la t1, fft16_shufs2
+    vle64.v v31, (t1)
+    vrgather.vv v7, v4, v31
     vsetivli t0, 16, e64, m2
     vfsub.vv v2, v0, v6
     vfadd.vv v0, v0, v6
@@ -186,14 +209,21 @@ fft8_rearrange:
 
 fft16_shufs:
     .dword p_one, p_one, p_cos_16_1, n_cos_16_3, p_cos_16_2, n_cos_16_2, p_cos_16_3, n_cos_16_1
-    .dword p_one, p_one, p_cos_16_2, p_cos_16_2, p_cos_16_1, p_cos_16_3, p_cos_16_1, p_cos_16_3
+    .dword p_one, p_one, p_cos_16_1, p_cos_16_3, p_cos_16_2, p_cos_16_2, p_cos_16_3, p_cos_16_1
 
     .dword 0x0, 0x0, n_cos_16_3, p_cos_16_1, n_cos_16_2, p_cos_16_2, n_cos_16_1, p_cos_16_3
-    .dword 0x0, 0x0, p_cos_16_2, p_cos_16_2, p_cos_16_3, p_cos_16_1, p_cos_16_3, p_cos_16_1
+    .dword 0x0, 0x0, p_cos_16_3, p_cos_16_1, p_cos_16_2, p_cos_16_2, p_cos_16_1, p_cos_16_3
 
-    .dword 0x18, 0x11, 0x1a, 0x12, 0x1c, 0x14, 0x1e, 0x16 
-    .dword 0x10, 0x19, 0x14, 0x1c, 0x12, 0x1a, 0x17, 0x1f
+    #.dword 0x18, 0x11, 0x1a, 0x12, 0x1c, 0x14, 0x1e, 0x16 
+    #.dword 0x10, 0x19, 0x14, 0x1c, 0x12, 0x1a, 0x17, 0x1f
 
-    .dword 0x0, 0x0, 0x1b, 0x13, 0x1d, 0x15, 0x1f, 0x17
-    .dword 0x0, 0x0, 0x15, 0x1d, 0x13, 0x1b, 0x16, 0x1e
+    #.dword 0x0, 0x0, 0x1b, 0x13, 0x1d, 0x15, 0x1f, 0x17
+    #.dword 0x0, 0x0, 0x15, 0x1d, 0x13, 0x1b, 0x16, 0x1e
 
+    .dword 0x18, 0x11, 0x1a, 0x12, 0x1c, 0x14, 0x1e, 0x16
+    .dword 0x10, 0x19, 0x12, 0x1a, 0x14, 0x1c, 0x16, 0x1e
+
+    .dword 0x00, 0x00, 0x1b, 0x13, 0x1d, 0x15, 0x1f, 0x17
+    .dword 0x00, 0x00, 0x13, 0x1b, 0x15, 0x1d, 0x17, 0x1f
+fft16_shufs2:
+    .dword 0x1, 0x0, 0x3, 0x2, 0x5, 0x4, 0x7, 0x6

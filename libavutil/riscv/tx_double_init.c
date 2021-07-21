@@ -24,9 +24,10 @@
 #include "../lavu_fft_test/memst_fft16.c"
 static int count = 0;
 
-void ff_fft4_double_riscv    (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
-void ff_fft8_double_riscv    (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
-void ff_fft16_double_riscv   (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+void ff_fft4_double_riscv       (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+void ff_fft8_double_riscv       (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+void ff_fft8_double_riscv_v128  (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+void ff_fft16_double_riscv      (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
 
 static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
                                ptrdiff_t stride)
@@ -90,16 +91,21 @@ av_cold void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx) {
             TXFN(ff_fft4_double_riscv, 1, 8, 0);
             break;
         case 8:
-            TXFN(ff_fft8_double_riscv, 1, 8, 0);
+            if (1)//There should be a method to check VLEN, or it should be in 
+                  //a flag, but that would potentially take up 16b
+                TXFN(ff_fft8_double_riscv_v128, 1, 8, 0); //_v128 is faster but 
+                                     //works only on processors with VLEN = 128
+            else
+                TXFN(ff_fft8_double_riscv, 1, 8, 0);
             break;
         case 16:
-            TXFN(ff_fft16_double_riscv, 1, 8, 0);
+            TXFN(ff_fft16_double_riscv, 0, 8, 0);
             break;
         }
     }
 
     //Test only
-    TXFN(test_fft, 1, 8, 0);
+    TXFN(test_fft, 0, 8, 0);
 
     
     if (gen_revtab)
