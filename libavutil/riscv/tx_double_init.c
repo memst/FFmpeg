@@ -42,17 +42,17 @@ static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
     }
     switch (s->m){
         case 8:
-            ff_fft8_double_riscv(s, out, out, 0);
+            ff_fft8_double_riscv_v128(s, out, out, 0);
             break;
         case 16:
-            if (count == 1){
+            if (count == 0){
+                memst_fft16(s, out, out, 0);
+                count++;
+            } else{
                 fft8(out+0);
                 fft4(out+8);
                 fft4(out+12);
                 ff_fft16_double_riscv(s, out, out, 0); 
-            } else{
-                memst_fft16(s, out, out, 0);
-                count++;
             }
 
             break;
