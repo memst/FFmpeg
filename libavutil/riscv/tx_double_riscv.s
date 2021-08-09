@@ -31,6 +31,31 @@
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv:
+    vsetivli t0, 8, e64, m2, ta, ma
+    vle64.v v0, (a2)                    #Load complex
+FFT4:
+    la t1, fft4_shufs
+    vle64.v v6, 0(t1)
+    add t1, t1, 64
+    vle64.v v4, 0(t1)
+    add t1, t1, 64
+    vle64.v v8, 0(t1)
+
+    vrgather.vv v2, v0, v4
+    vrgather.vv v4, v0, v8
+    vfmul.vv v4, v4, v6
+    vfadd.vv v0, v2, v4
+
+    add t1, t1, 64
+    vle64.v v4, 0(t1)
+    add t1, t1, 64
+    vle64.v v8, 0(t1)
+    vrgather.vv v2, v0, v4
+    vrgather.vv v4, v0, v8
+    vfmul.vv v4, v4, v6
+    vfadd.vv v0, v2, v4
+
+    vse64.v v0, 0(a1)
     ret
 
 # a0- AVTXContext
@@ -158,6 +183,22 @@ ff_fft16_double_riscv:
 .equ n_one, 0xBFF0000000000000
 .equ p_sqrt_1_2, 0x3FE6A09E667F3BCD
 .equ n_sqrt_1_2, 0xBFE6A09E667F3BCD
+
+fft4_shufs:
+    .dword p_one, p_one, p_one, p_one
+    .dword n_one, n_one, n_one, n_one
+
+    .dword 0x0, 0x1, 0x5, 0x6
+    .dword 0x0, 0x1, 0x5, 0x6
+
+    .dword 0x2, 0x3, 0x7, 0x4
+    .dword 0x2, 0x3, 0x7, 0x4
+
+    .dword 0x0, 0x1, 0x4, 0x5
+    .dword 0x0, 0x1, 0x4, 0x5
+
+    .dword 0x3, 0x2, 0x6, 0x7
+    .dword 0x3, 0x2, 0x6, 0x7
 
 fft4_v128_shufs:
     .dword 0xc, 0xd, 0x8, 0x9
