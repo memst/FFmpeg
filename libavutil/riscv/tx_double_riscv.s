@@ -26,35 +26,52 @@
     .global ff_fft8_double_riscv_v128
 
 
+# vsetivli t0, 8, e64, m2, ta, ma
+# av0 - source/output vector
+# av1, rv2, rv3, avmask - temp vectors
+# at0 - temp scalar
+.macro FFT4 av0, av1, av2, av3, avmask, at0
+    la \at0, fft4_shufs                  
+    vle64.v \avmask, 0(\at0)              #Load 4xPOS, 4xNEG
+    add \at0, \at0, 64
+    vle64.v \av2, 0(\at0)
+    add \at0, \at0, 64
+    vle64.v \av3, 0(\at0)
+
+    vrgather.vv \av1, \av0, \av2
+    vrgather.vv \av2, \av0, \av3
+    vfmul.vv \av2, \av2, \avmask
+    vfadd.vv \av0, \av1, \av2
+
+    add \at0, \at0, 64
+    vle64.v \av2, 0(\at0)
+    add \at0, \at0, 64
+    vle64.v \av3, 0(\at0)
+    vrgather.vv \av1, \av0, \av2
+    vrgather.vv \av2, \av0, \av3
+    vfmul.vv \av2, \av2, \avmask
+    vfadd.vv \av0, \av1, \av2
+.endm
+
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv:
+    vsetivli t0, 4, e32, m1, ta, ma
+    lw t1, 56(a0)                       #*revtab
+    vle32.v v0, 0(t1)                   # revtab
+    li t1, 16
+    vwmul.vx v2, v0, t1                 #multiply revtab indices by 16 (building byte offsets)
     vsetivli t0, 8, e64, m2, ta, ma
-    vle64.v v0, (a2)                    #Load complex
-FFT4:
-    la t1, fft4_shufs
-    vle64.v v6, 0(t1)
-    add t1, t1, 64
-    vle64.v v4, 0(t1)
-    add t1, t1, 64
-    vle64.v v8, 0(t1)
-
-    vrgather.vv v2, v0, v4
-    vrgather.vv v4, v0, v8
-    vfmul.vv v4, v4, v6
-    vfadd.vv v0, v2, v4
-
-    add t1, t1, 64
-    vle64.v v4, 0(t1)
-    add t1, t1, 64
-    vle64.v v8, 0(t1)
-    vrgather.vv v2, v0, v4
-    vrgather.vv v4, v0, v8
-    vfmul.vv v4, v4, v6
-    vfadd.vv v0, v2, v4
-
+    la t1, double_up_ladder
+    vle64.v v0, (t1)
+    vrgather.vv v4, v2, v0              #spread revtab over two doubles for re+im
+    la t1, zero_eight_repeating
+    vle64.v v2, (t1)
+    vfadd.vv v4, v4, v2                 #increment every 2nd offset
+    vloxei64.v v0, (a2), v4             #permuted vector
+    FFT4 v0, v2, v4, v6, v8, t0
     vse64.v v0, 0(a1)
     ret
 
@@ -183,6 +200,26 @@ ff_fft16_double_riscv:
 .equ n_one, 0xBFF0000000000000
 .equ p_sqrt_1_2, 0x3FE6A09E667F3BCD
 .equ n_sqrt_1_2, 0xBFE6A09E667F3BCD
+
+double_up_ladder:
+    .dword 0x0, 0x0, 0x1, 0x1
+    .dword 0x2, 0x2, 0x3, 0x3
+    .dword 0x4, 0x4, 0x5, 0x5
+    .dword 0x6, 0x6, 0x7, 0x7
+    #.dword 0x8, 0x8, 0x9, 0x9
+    #.dword 0xa, 0xa, 0xb, 0xb
+    #.dword 0xc, 0xc, 0xd, 0xd
+    #.dword 0xe, 0xe, 0xf, 0xf
+
+zero_eight_repeating:
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    #.dword 0x0, 0x8, 0x0, 0x8
+    #.dword 0x0, 0x8, 0x0, 0x8
+    #.dword 0x0, 0x8, 0x0, 0x8
+    #.dword 0x0, 0x8, 0x0, 0x8
 
 fft4_shufs:
     .dword p_one, p_one, p_one, p_one

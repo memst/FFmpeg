@@ -101,7 +101,7 @@ av_cold void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx) {
     if (s->n == 1 && have_rvv(cpu_flags)) {
         switch(s->m){
         case 4:
-            TXFN(ff_fft4_double_riscv, 1, 8, 0);
+            TXFN(ff_fft4_double_riscv, 0, 8, 0);
             break;
         case 8:
             if (1)//There should be a method to check VLEN, or it should be in 
@@ -119,7 +119,7 @@ av_cold void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx) {
     }
 
     //Test only
-    TXFN(test_fft, 0, 8, 0);
+    //TXFN(test_fft, 0, 8, 0);
 
     
     if (gen_revtab)
