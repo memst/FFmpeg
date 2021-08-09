@@ -22,13 +22,22 @@
     .global ff_fft8_double_riscv
     .global ff_fft16_double_riscv
     
+    .global ff_fft4_double_riscv_v128
     .global ff_fft8_double_riscv_v128
+
 
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv:
+    ret
+
+# a0- AVTXContext
+# a1- FFTComplex out
+# a2- FFTComplex in
+# a4- tmp
+ff_fft4_double_riscv_v128:
     vsetivli t0, 8, e64, m4
     vle64.v v0, (a2)            #Load complex
     vsetivli t0, 4, e64, m2
@@ -36,7 +45,7 @@ ff_fft4_double_riscv:
     vfadd.vv v6, v0, v2         #t1234
 
     vsetivli t0, 16, e64, m8
-    la t1, fft4_shufs
+    la t1, fft4_v128_shufs
     vle64.v v16, 0(t1)
     vrgather.vv v8, v0, v16     #t12r12 t12r12 t34r43 t34r43    v16 - cd89 cd89 efba efba
     vsetivli t0, 8, e64, m4
@@ -45,6 +54,14 @@ ff_fft4_double_riscv:
     vfmul.vv v12, v12, v24      #v24 - PPPN NNNP
     vfadd.vv v0, v8, v12        #a12 b12 a34 b34
     vse64.v v0, 0(a1)
+    ret
+
+
+# a0- AVTXContext
+# a1- FFTComplex out
+# a2- FFTComplex in
+# a4- tmp
+ff_fft8_double_riscv:
     ret
 
 # a0- AVTXContext
@@ -103,29 +120,10 @@ ff_fft8_double_riscv_v128:
     vse64.v v0, 0(a1)
     ret
 
-ff_fft8_double_riscv:
-
-    ret
-
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
-    li t2, 64
-    li t3, 32
-
-    #lw t4, 56(a0) #Address of revtab
-    #la t4, (t4)
-    #vsetvli t0, t3, e64, m4
-    #vle64.v v0, (t4)
-    #vmv.v.i v0, 11
-    #vse64.v v0, (a0)
-    sw t4, (a1)
-    sw a1, 8(a1)
-    ret
-    #vloxei32.v vd, (rs1), vs2
-
-
 ff_fft16_double_riscv:
     li t2, 64
     li t3, 32
@@ -161,7 +159,7 @@ ff_fft16_double_riscv:
 .equ p_sqrt_1_2, 0x3FE6A09E667F3BCD
 .equ n_sqrt_1_2, 0xBFE6A09E667F3BCD
 
-fft4_shufs:
+fft4_v128_shufs:
     .dword 0xc, 0xd, 0x8, 0x9
     .dword 0xc, 0xd, 0x8, 0x9
 

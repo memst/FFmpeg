@@ -26,13 +26,15 @@ static int count = 0;
 
 void ff_fft4_double_riscv       (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
 void ff_fft8_double_riscv       (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
-void ff_fft8_double_riscv_v128  (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
 void ff_fft16_double_riscv      (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+
+void ff_fft4_double_riscv_v128  (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
+void ff_fft8_double_riscv_v128  (AVTXContext *s, void *out, void *in, ptrdiff_t stride);
 
 static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
                                ptrdiff_t stride)
 {
-    printf("count: %d\n", count);
+    //printf("count: %d\n", count);
     FFTComplex *in = _in;
     FFTComplex *out = _out;
 
@@ -41,23 +43,34 @@ static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
         temp[i] = in[i];
         out[i] = in[s->revtab[i]];
     }
-    switch (s->m){
-        case 8:
-            ff_fft8_double_riscv_v128(s, out, out, 0);
-            break;
-        case 16:
-            if (count == 0){
+    if (count == 0) {
+        switch (s->m) {
+            case 4:
+                memst_fft4(s, out, out, 0);
+                break;
+            case 8:
+                break;
+            case 16:
                 memst_fft16(s, out, out, 0);
-                count++;
-            } else{
+                break;
+        }
+    } else {
+        switch (s->m) {
+            case 4:
+                ff_fft4_double_riscv(s, out, out, 0);
+                break;
+            case 8:
+                ff_fft8_double_riscv_v128(s, out, out, 0);
+                break;
+            case 16:
                 fft8(out+0);
                 fft4(out+8);
                 fft4(out+12);
                 ff_fft16_double_riscv(s, out, out, 0); 
-            }
-
-            break;
+                break;
+        }
     }
+    count++;
     
 
     //ff_fft8_double_riscv(s, temp, temp, stride);
@@ -93,7 +106,8 @@ av_cold void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx) {
         case 8:
             if (1)//There should be a method to check VLEN, or it should be in 
                   //a flag, but that would potentially take up 16b
-                TXFN(ff_fft8_double_riscv_v128, 1, 8, 0); //_v128 is faster but 
+                TXFN(test_fft, 0, 8, 0);
+                //TXFN(ff_fft8_double_riscv_v128, 1, 8, 0); //_v128 is faster but 
                                      //works only on processors with VLEN = 128
             else
                 TXFN(ff_fft8_double_riscv, 1, 8, 0);
