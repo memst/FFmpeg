@@ -28,29 +28,25 @@
 
 # vsetivli t0, 8, e64, m2, ta, ma
 # av0 - source/output vector
-# av1, rv2, rv3, avmask - temp vectors
+# av1, av2, av3, av4 - temp vectors
 # at0 - temp scalar
-.macro FFT4 av0, av1, av2, av3, avmask, at0
-    la \at0, fft4_shufs                  
-    vle64.v \avmask, 0(\at0)              #Load 4xPOS, 4xNEG
-    add \at0, \at0, 64
-    vle64.v \av2, 0(\at0)
-    add \at0, \at0, 64
+.macro FFT4 av0, av1, av2, av3, av4, at0
+    vslidedown.vi \av1, \av0, 4
+    vsetivli \at0, 4, e64, m2, ta, ma
+    vfsub.vv \av2, \av0, \av1                 #r1234
+    vfadd.vv \av1, \av0, \av1                 #t1234
+    vsetivli \at0, 8, e64, m2, ta, ma
+    vslideup.vi \av2, \av1, 4               #r1234 t1234
+    la \at0, fft4_shufs
     vle64.v \av3, 0(\at0)
-
-    vrgather.vv \av1, \av0, \av2
-    vrgather.vv \av2, \av0, \av3
-    vfmul.vv \av2, \av2, \avmask
-    vfadd.vv \av0, \av1, \av2
-
-    add \at0, \at0, 64
-    vle64.v \av2, 0(\at0)
-    add \at0, \at0, 64
-    vle64.v \av3, 0(\at0)
-    vrgather.vv \av1, \av0, \av2
-    vrgather.vv \av2, \av0, \av3
-    vfmul.vv \av2, \av2, \avmask
-    vfadd.vv \av0, \av1, \av2
+    addi \at0, \at0, 64
+    vle64.v \av4, 0(\at0)
+    vrgather.vv \av0, \av2, \av3              #t12r12 t12r12
+    vrgather.vv \av1, \av2, \av4              #t34r43 t34r43
+    addi \at0, \at0, 64
+    vle64.v \av4, 0(\at0)
+    vfmul.vv \av1, \av1, \av4                 #v16 - PPPN NNNP
+    vfadd.vv \av0, \av0, \av1
 .endm
 
 # a0- AVTXContext
@@ -58,6 +54,7 @@
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv:
+    #Loading and permuting revtab
     vsetivli t0, 4, e32, m1, ta, ma
     lw t1, 56(a0)                       #*revtab
     vle32.v v0, 0(t1)                   # revtab
@@ -71,6 +68,7 @@ ff_fft4_double_riscv:
     vle64.v v2, (t1)
     vfadd.vv v4, v4, v2                 #increment every 2nd offset
     vloxei64.v v0, (a2), v4             #permuted vector
+    #Do and store FFT4
     FFT4 v0, v2, v4, v6, v8, t0
     vse64.v v0, 0(a1)
     ret
@@ -222,20 +220,14 @@ zero_eight_repeating:
     #.dword 0x0, 0x8, 0x0, 0x8
 
 fft4_shufs:
-    .dword p_one, p_one, p_one, p_one
-    .dword n_one, n_one, n_one, n_one
+    .dword 0x4, 0x5, 0x0, 0x1
+    .dword 0x4, 0x5, 0x0, 0x1
 
-    .dword 0x0, 0x1, 0x5, 0x6
-    .dword 0x0, 0x1, 0x5, 0x6
+    .dword 0x6, 0x7, 0x3, 0x2
+    .dword 0x6, 0x7, 0x3, 0x2
 
-    .dword 0x2, 0x3, 0x7, 0x4
-    .dword 0x2, 0x3, 0x7, 0x4
-
-    .dword 0x0, 0x1, 0x4, 0x5
-    .dword 0x0, 0x1, 0x4, 0x5
-
-    .dword 0x3, 0x2, 0x6, 0x7
-    .dword 0x3, 0x2, 0x6, 0x7
+    .dword p_one, p_one, p_one, n_one
+    .dword n_one, n_one, n_one, p_one
 
 fft4_v128_shufs:
     .dword 0xc, 0xd, 0x8, 0x9
