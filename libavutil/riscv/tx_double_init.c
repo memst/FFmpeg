@@ -104,16 +104,15 @@ av_cold void ff_tx_init_double_riscv(AVTXContext *s, av_tx_fn *tx) {
             TXFN(ff_fft4_double_riscv, 1, 8, 0);
             break;
         case 8:
-            if (1)//There should be a method to check VLEN, or it should be in 
+            if (0)//There should be a method to check VLEN, or it should be in 
                   //a flag, but that would potentially take up 16b
-                TXFN(test_fft, 0, 8, 0);
-                //TXFN(ff_fft8_double_riscv_v128, 1, 8, 0); //_v128 is faster but 
+                TXFN(ff_fft8_double_riscv_v128, 1, 8, 0); //_v128 is faster but 
                                      //works only on processors with VLEN = 128
             else
                 TXFN(ff_fft8_double_riscv, 1, 8, 0);
             break;
         case 16:
-            TXFN(ff_fft16_double_riscv, 0, 8, 0);
+            TXFN(ff_fft16_double_riscv, 1, 8, 0);
             break;
         }
     }

@@ -25,6 +25,25 @@
     .global ff_fft4_double_riscv_v128
     .global ff_fft8_double_riscv_v128
 
+#Load part of complex and permute it with revtab
+# a0 - pointer to AVTXContext
+# v0 - permuted vector
+# n  - number of samples
+.macro PERMUTE_REVTAB_I n
+    vsetivli t0, \n, e32, m4, ta, ma
+    lw t1, 56(a0)                       #*revtab
+    vle32.v v0, 0(t1)                   # revtab
+    li t1, 16
+    vwmul.vx v8, v0, t1                 #multiply revtab indices by 16 (building byte offsets)
+    vsetivli t0, \n*2, e64, m8, ta, ma
+    la t1, double_up_ladder
+    vle64.v v0, (t1)
+    vrgather.vv v16, v8, v0              #spread revtab over two doubles for re+im
+    la t1, zero_eight_repeating
+    vle64.v v8, (t1)
+    vfadd.vv v16, v16, v8                 #increment every 2nd offset
+    vloxei64.v v0, (a2), v16             #permuted vector
+.endm
 
 # vsetivli t0, 8, e64, m2, ta, ma
 # av0 - source/output vector
@@ -54,21 +73,9 @@
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv:
-    #Loading and permuting revtab
-    vsetivli t0, 4, e32, m1, ta, ma
-    lw t1, 56(a0)                       #*revtab
-    vle32.v v0, 0(t1)                   # revtab
-    li t1, 16
-    vwmul.vx v2, v0, t1                 #multiply revtab indices by 16 (building byte offsets)
-    vsetivli t0, 8, e64, m2, ta, ma
-    la t1, double_up_ladder
-    vle64.v v0, (t1)
-    vrgather.vv v4, v2, v0              #spread revtab over two doubles for re+im
-    la t1, zero_eight_repeating
-    vle64.v v2, (t1)
-    vfadd.vv v4, v4, v2                 #increment every 2nd offset
-    vloxei64.v v0, (a2), v4             #permuted vector
+    PERMUTE_REVTAB_I 4
     #Do and store FFT4
+    vsetivli t0, 8, e64, m2, ta, ma
     FFT4 v0, v2, v4, v6, v8, t0
     vse64.v v0, 0(a1)
     ret
@@ -78,8 +85,7 @@ ff_fft4_double_riscv:
 # a2- FFTComplex in
 # a4- tmp
 ff_fft4_double_riscv_v128:
-    vsetivli t0, 8, e64, m4
-    vle64.v v0, (a2)            #Load complex
+    PERMUTE_REVTAB_I 4
     vsetivli t0, 4, e64, m2
     vfsub.vv v4, v0, v2         #r1234
     vfadd.vv v6, v0, v2         #t1234
@@ -96,12 +102,84 @@ ff_fft4_double_riscv_v128:
     vse64.v v0, 0(a1)
     ret
 
+.macro FFT8
+    #TO-DO: Optimise register use
+    vsetivli t0, 8, e64, m2, ta, ma
+    #TO-DO: Investigate using segmented loads to accomplish this with less instructions
+    la t4, fft8_shufs
+    vle64.v v16, 0(t4)
+    addi t4, t4, 64
+    vle64.v v20, 0(t4)
+    addi t4, t4, 64
+    vle64.v v24, 0(t4)
+    addi t4, t4, 64
+    vle64.v v28, 0(t4)
+
+    vslidedown.vi v4, v0, 8     #4567
+
+    vfadd.vv v8, v0, v4         #q1234 k1234
+    vfsub.vv v0, v0, v4         #r1234 j1234
+
+    vrgather.vv v12, v8, v16    #q12 k32 q34 k14    v16 - 01652347 
+    vrgather.vv v4, v0, v20     #r1212 r4343        v20 - 01013232 
+    vrgather.vv v8, v0, v24     #j4321 j3412        v24 - 76546745 
+    vfmul.vv v8, v8, v28        #j'                 v28 - sqrt(1/2) - PNNP NNPP
+
+    vsetivli t0, 4, e64, m1, ta, ma
+    addi t4, t4, 64
+    vle64.v v16, 0(t4)
+    addi t4, t4, 32
+    vle64.v v18, 0(t4)
+    addi t4, t4, 32
+    vle64.v v20, 0(t4)
+    addi t4, t4, 32
+    vle64.v v22, 0(t4)
+
+    vslidedown.vi v6, v4, 4     #r4343
+    vfmacc.vv v4, v6, v16        #z1234              v16 - 1, -1, -1, 1 
+
+    vslidedown.vi v10, v8, 4    #j3412
+    vfadd.vv v6, v8, v10        #l3412
+    vrgather.vv v0, v6, v18      #l2143              v18 - 3210 
+    vfmacc.vv v6, v0, v20       #t1234              v20 - -1, 1, -1, 1 
+
+    vslidedown.vi v14, v12, 4   #q34 k14
+    vfadd.vv    v0, v12, v14    #s12 g12
+    vfsub.vv    v2, v12, v14    #s34 g43
+
+    vfadd.vv    v14, v4, v6     #o1234 (out)
+    vfsub.vv    v12, v4, v6     #u1234 (out)
+
+    vsetivli t0, 8, e64, m2
+    vslideup.vi v0, v2, 4
+    addi t4, t4, 32
+    vle64.v v24, 0(t4)
+    vrgather.vv v4, v0, v24     #s1234 g1234        v24 - 01452376 
+    vsetivli t0, 4, e64, m1     #16 registers v0, v2, v4... of 4 doubles each
+
+    vslidedown.vi v6, v4, 4
+    vfadd.vv v8, v4, v6         #w1234 (out)
+    vfsub.vv v10, v4, v6        #h1234 (out)
+
+    vsetivli t0, 8, e64, m2     #3 registers v0, v8, v16, v24 of 16 doubles each
+    vslideup.vi v8, v10, 4
+    vslideup.vi v12, v14, 4
+    vsetivli t0, 16, e64, m4
+    vslideup.vi v8, v12, 8
+
+    la t4, fft8_rearrange        #rearrange the groups back in original order
+    vle64.v v16, 0(t4)            
+    vrgather.vv v0, v8, v16
+.endm
 
 # a0- AVTXContext
 # a1- FFTComplex out
 # a2- FFTComplex in
 # a4- tmp
 ff_fft8_double_riscv:
+    PERMUTE_REVTAB_I 8
+    FFT8
+    vse64.v v0, 0(a1)
     ret
 
 # a0- AVTXContext
@@ -109,9 +187,8 @@ ff_fft8_double_riscv:
 # a2- FFTComplex in
 # a4- tmp
 ff_fft8_double_riscv_v128:
+    PERMUTE_REVTAB_I 8
     vsetivli t0, 16, e64, m8    #4 registers v0, v8, v16, v24 of 16 doubles each
-    vle64.v v0, (a2)            #load fftcomplex to register
-#fft8_m:
     la t4, fft8_shufs           #load indices needed for shuffles
     vle64.v v16, 0(t4)
     addi t4, t4, 128
