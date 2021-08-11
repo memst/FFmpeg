@@ -74,10 +74,13 @@
 # a4- tmp
 ff_fft4_double_riscv:
     PERMUTE_REVTAB_I 4
-    #Do and store FFT4
+
     vsetivli t0, 8, e64, m2, ta, ma
     FFT4 v0, v2, v4, v6, v8, t0
-    vse64.v v0, 0(a1)
+
+    la t0, fft4_shufs_end
+    vle64.v v2, 0(t0)
+    vsoxei64.v v0, (a1), v2
     ret
 
 # a0- AVTXContext
@@ -158,18 +161,14 @@ ff_fft4_double_riscv_v128:
     vsetivli t0, 4, e64, m1     #16 registers v0, v2, v4... of 4 doubles each
 
     vslidedown.vi v6, v4, 4
-    vfadd.vv v8, v4, v6         #w1234 (out)
+    vfadd.vv v0, v4, v6         #w1234 (out)
     vfsub.vv v10, v4, v6        #h1234 (out)
 
     vsetivli t0, 8, e64, m2     #3 registers v0, v8, v16, v24 of 16 doubles each
-    vslideup.vi v8, v10, 4
+    vslideup.vi v0, v10, 4
     vslideup.vi v12, v14, 4
     vsetivli t0, 16, e64, m4
-    vslideup.vi v8, v12, 8
-
-    la t4, fft8_rearrange        #rearrange the groups back in original order
-    vle64.v v16, 0(t4)            
-    vrgather.vv v0, v8, v16
+    vslideup.vi v0, v12, 8
 .endm
 
 # a0- AVTXContext
@@ -179,8 +178,12 @@ ff_fft4_double_riscv_v128:
 ff_fft8_double_riscv:
     PERMUTE_REVTAB_I 8
     FFT8
-    vse64.v v0, 0(a1)
+
+    la t4, fft8_shufs_end        #rearrange the groups back in original order
+    vle64.v v4, 0(t4)
+    vsoxei64.v v0, (a1), v4
     ret
+
 
 # a0- AVTXContext
 # a1- FFTComplex out
@@ -231,7 +234,7 @@ ff_fft8_double_riscv_v128:
 #fft8_e: 
     vsetivli t0, 16, e64, m8     #3 registers v0, v8, v16, v24 of 16 doubles each
 
-    la t4, fft8_rearrange        #rearrange the groups back in original order
+    la t4, fft8_v128_rearrange        #rearrange the groups back in original order
     vle64.v v16, 0(t4)            
     vrgather.vv v0, v8, v16
     vse64.v v0, 0(a1)
@@ -276,35 +279,40 @@ ff_fft16_double_riscv:
 .equ p_sqrt_1_2, 0x3FE6A09E667F3BCD
 .equ n_sqrt_1_2, 0xBFE6A09E667F3BCD
 
+#Indices used in REVTAB
 double_up_ladder:
     .dword 0x0, 0x0, 0x1, 0x1
     .dword 0x2, 0x2, 0x3, 0x3
     .dword 0x4, 0x4, 0x5, 0x5
     .dword 0x6, 0x6, 0x7, 0x7
-    #.dword 0x8, 0x8, 0x9, 0x9
-    #.dword 0xa, 0xa, 0xb, 0xb
-    #.dword 0xc, 0xc, 0xd, 0xd
-    #.dword 0xe, 0xe, 0xf, 0xf
+    .dword 0x8, 0x8, 0x9, 0x9
+    .dword 0xa, 0xa, 0xb, 0xb
+    .dword 0xc, 0xc, 0xd, 0xd
+    .dword 0xe, 0xe, 0xf, 0xf
 
 zero_eight_repeating:
     .dword 0x0, 0x8, 0x0, 0x8
     .dword 0x0, 0x8, 0x0, 0x8
     .dword 0x0, 0x8, 0x0, 0x8
     .dword 0x0, 0x8, 0x0, 0x8
-    #.dword 0x0, 0x8, 0x0, 0x8
-    #.dword 0x0, 0x8, 0x0, 0x8
-    #.dword 0x0, 0x8, 0x0, 0x8
-    #.dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
+    .dword 0x0, 0x8, 0x0, 0x8
 
 fft4_shufs:
-    .dword 0x4, 0x5, 0x0, 0x1
-    .dword 0x4, 0x5, 0x0, 0x1
+    .dword 0x4, 0x5, 0x4, 0x5
+    .dword 0x0, 0x1, 0x0, 0x1
 
-    .dword 0x6, 0x7, 0x3, 0x2
-    .dword 0x6, 0x7, 0x3, 0x2
+    .dword 0x6, 0x7, 0x6, 0x7
+    .dword 0x3, 0x2, 0x3, 0x2
 
-    .dword p_one, p_one, p_one, n_one
-    .dword n_one, n_one, n_one, p_one
+    .dword p_one, p_one, n_one, n_one
+    .dword p_one, n_one, n_one, p_one
+
+fft4_shufs_end:
+    .dword 0x00, 0x08, 0x20, 0x28
+    .dword 0x10, 0x18, 0x30, 0x38
 
 fft4_v128_shufs:
     .dword 0xc, 0xd, 0x8, 0x9
@@ -341,7 +349,13 @@ fft8_shufs2:
     .dword 0x0, 0x1, 0x4, 0x5
     .dword 0x2, 0x3, 0x7, 0x6
 
-fft8_rearrange:
+fft8_shufs_end:
+    .dword 0x00, 0x08, 0x20, 0x28
+    .dword 0x40, 0x48, 0x60, 0x68
+    .dword 0x10, 0x18, 0x30, 0x38
+    .dword 0x50, 0x58, 0x70, 0x78
+
+fft8_v128_rearrange:
     .dword 0x0, 0x1, 0x8, 0x9, 0x2, 0x3, 0xa, 0xb, 0x4, 0x5, 0xc, 0xd, 0x6, 0x7, 0xe, 0xf
 
 .equ p_cos_16_1, 0x3fed906bcf328d46
