@@ -296,36 +296,36 @@ ff_fft8_double_riscv_v128:
     addi           t1, t1, 128
     vle64.v        v28, (t1)
 
-    vrgather.vv     v4, v0, v16 #rearranging the 2nd terms for s[0..15] sum
-    vfmul.vv        v4, v4, v24 #scaled 2nd terms for sum
-    vfmul.vv        v0, v0, v20 #scaled 1st terms for sum
-    vfadd.vv        v0, v0, v4  #s[0..15]
+    vrgather.vv     v4, v0, v16     #rearranging the 2nd terms for s[0..15] sum
+    vfmul.vv        v4, v4, v24     #scaled 2nd terms for sum
+    vfmul.vv        v0, v0, v20     #scaled 1st terms for sum
+    vfadd.vv        v0, v0, v4      #s[0..15]
 
     vslidedown.vi   v4, v0, 8
-    vslideup.vi     v4, v0, 8 #s[8..15] s[0..7]
-    vfmul.vv        v4, v4, v28 #Can change to xor
-    vfadd.vv        v0, v0, v4 #w56 x56 y56 u56 w34 x34 y34 u34
+    vslideup.vi     v4, v0, 8       #s[8..15] s[0..7]
+    vxor.vv         v4, v4, v28     #mask for addition/subtraction
+    vfadd.vv        v0, v0, v4      #w56 x56 y56 u56 w34 x34 y34 u34
 
     vsetivli        t0, 8, e64, m4, ta, ma
     addi            t1, t1, 128
-    vle64.v         v20, (t1)   # Load shuf
-    vrgather.vv     v4, v0, v20 # w5 w6 x5 x6 w4 w3 x4 x3
-    vadd.vi         v20, v20, 4 # Offset the same shuf
-    vrgather.vv     v8, v0, v20 # y5 y6 u5 u6 y4 y3 u4 u3
+    vle64.v         v20, (t1)       # Load shuf
+    vrgather.vv     v4, v0, v20     # w5 w6 x5 x6 w4 w3 x4 x3
+    vadd.vi         v20, v20, 4     # Offset the same shuf
+    vrgather.vv     v8, v0, v20     # y5 y6 u5 u6 y4 y3 u4 u3
     addi            t1, a1, 64
-    vle64.v         v0, (a1)    #z[0..3]
-    vle64.v         v12, (t1)   #z[4..7]
+    vle64.v         v0, (a1)        #z[0..3]
+    vle64.v         v12, (t1)       #z[4..7]
 
-    vfsub.vv        v16, v0, v4 #o 17 18 21 22 25 26 29 30
-    vfadd.vv        v0 , v0, v4 #o  1  2  5  6  9 10 13 14
+    vfsub.vv        v16, v0, v4     #o 17 18 21 22 25 26 29 30
+    vfadd.vv        v0 , v0, v4     #o  1  2  5  6  9 10 13 14
 
-    vfadd.vv        v4, v12, v8 #o  3  4  7  8 11 12 15 16
-    vfsub.vv        v8, v12, v8 #o 19 20 23 24 27 28 31 32
+    vfadd.vv        v4, v12, v8     #o  3  4  7  8 11 12 15 16
+    vfsub.vv        v8, v12, v8     #o 19 20 23 24 27 28 31 32
 
     vsetivli        t0, 16, e64, m4, ta, ma
 
-    vslideup.vi     v0, v16, 8 #even (out)
-    vslideup.vi     v4, v8 , 8 #odd  (out)
+    vslideup.vi     v0, v16, 8      #even (out)
+    vslideup.vi     v4, v8 , 8      #odd  (out)
 .endm
 
 # a0- AVTXContext
@@ -350,6 +350,8 @@ ff_fft16_double_riscv:
 
     .section .rodata            # Start read-only data section
     .balign 4                   # align to 4 bytes
+
+.equ n_zero, 0x8000000000000000
 
 .equ p_one, 0x3FF0000000000000
 .equ n_one, 0xBFF0000000000000
@@ -454,10 +456,10 @@ fft16_shufs:
     .dword 0x0, 0x0, p_cos_16_2, n_cos_16_2, p_cos_16_3, n_cos_16_3, p_cos_16_1, n_cos_16_1
     .dword 0x0, 0x0, n_cos_16_2, n_cos_16_2, n_cos_16_3, n_cos_16_3, n_cos_16_1, n_cos_16_1
 
-    .dword p_one, n_one, p_one, n_one
-    .dword p_one, n_one, p_one, n_one
-    .dword n_one, p_one, n_one, p_one
-    .dword n_one, p_one, n_one, p_one
+    .dword    0x0, n_zero,    0x0, n_zero
+    .dword    0x0, n_zero,    0x0, n_zero
+    .dword n_zero,    0x0, n_zero,    0x0
+    .dword n_zero,    0x0, n_zero,    0x0
 
     #2nd load
     .dword 0x0, 0x1, 0x2, 0x3, 0x9, 0x8, 0xb, 0xa
