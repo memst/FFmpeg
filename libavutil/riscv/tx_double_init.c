@@ -39,11 +39,13 @@ static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
     FFTComplex *out = _out;
 
     FFTComplex *temp = av_malloc(2 * s->m * sizeof(FFTComplex)), *orig = temp;
-    for (int i = 0; i < s->m; i++) {
-        temp[i] = in[i];
-        out[i] = in[s->revtab[i]];
-    }
+
     if (count == 0) {
+        for (int i = 0; i < s->m; i++) {
+            temp[i] = in[i];
+            out[i] = in[s->revtab[i]];
+        }
+
         switch (s->m) {
             case 4:
                 memst_fft4(s, out, out, 0);
@@ -51,10 +53,15 @@ static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
             case 8:
                 break;
             case 16:
-                memst_fft16(s, out, out, 0);
+                lyn_fft16_m(s, out, out, 0);
                 break;
         }
     } else {
+        for (int i = 0; i < s->m; i++) {
+            temp[i] = in[i];
+            out[i] = in[i];
+        }
+
         switch (s->m) {
             case 4:
                 ff_fft4_double_riscv(s, out, out, 0);
@@ -63,9 +70,9 @@ static av_unused void test_fft(AVTXContext *s, void *_out, void *_in,
                 ff_fft8_double_riscv_v128(s, out, out, 0);
                 break;
             case 16:
-                fft8(out+0);
-                fft4(out+8);
-                fft4(out+12);
+                //fft8(out+0);
+                //fft4(out+8);
+                //fft4(out+12);
                 ff_fft16_double_riscv(s, out, out, 0); 
                 break;
         }
